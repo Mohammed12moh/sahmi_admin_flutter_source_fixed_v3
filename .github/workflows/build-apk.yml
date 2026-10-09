@@ -1,0 +1,47 @@
+name: Build Sahmi Admin APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Regenerate modern Android platform files (Embedding v2)
+        run: |
+          rm -rf android
+          flutter create --platforms=android --org com.sahmi --project-name sahmi_admin .
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Build release APK
+        env:
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Missing GitHub Actions secret SUPABASE_ANON_KEY"
+            exit 1
+          fi
+          flutter build apk --release --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sahmi-admin-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
